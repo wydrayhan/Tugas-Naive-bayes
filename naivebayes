@@ -1,0 +1,101 @@
+from math import sqrt, pi, exp
+
+class NaiveBayes:
+    def __init__(self):
+        self.class_probs = {}
+        self.attribute_probs = {}
+        self.continuous_params = {}
+
+    def fit(self, X_train, y_train):
+        # Menghitung probabilitas kelas
+        classes = list(set(y_train))
+        total_instances = len(y_train)
+        for cls in classes:
+            class_instances = [y for y in y_train if y == cls]
+            class_count = len(class_instances)
+            self.class_probs[cls] = class_count / total_instances
+
+        # Menghitung probabilitas atribut kategori dan parameter untuk atribut kontinu
+        for attr_idx in range(len(X_train[0])):
+            if isinstance(X_train[0][attr_idx], str):
+                self.attribute_probs[attr_idx] = {}
+                attribute_values = list(set(row[attr_idx] for row in X_train))
+                for cls in classes:
+                    self.attribute_probs[attr_idx][cls] = {}
+                    class_instances = [X_train[i] for i in range(len(y_train)) if y_train[i] == cls]
+                    for attr_val in attribute_values:
+                        attr_val_count = sum(1 for instance in class_instances if instance[attr_idx] == attr_val)
+                        self.attribute_probs[attr_idx][cls][attr_val] = (attr_val_count + 1) / (len(class_instances) + len(attribute_values))
+            else:
+                self.continuous_params[attr_idx] = {}
+                for cls in classes:
+                    class_instances = [row[attr_idx] for i, row in enumerate(X_train) if y_train[i] == cls]
+                    mean = sum(class_instances) / len(class_instances)
+                    variance = sum((x - mean) ** 2 for x in class_instances) / len(class_instances)
+                    std_dev = sqrt(variance)
+                    self.continuous_params[attr_idx][cls] = (mean, std_dev)
+
+    def calculate_prob_density(self, x, mean, std_dev):
+        exponent = exp(-((x - mean) ** 2 / (2 * std_dev ** 2)))
+        return (1 / (sqrt(2 * pi) * std_dev)) * exponent
+
+    def predict(self, X_test):
+        predictions = []
+        for instance in X_test:
+            max_prob = -1
+            pred_class = None
+            for cls in self.class_probs.keys():
+                prob = self.class_probs[cls]
+                for attr_idx, attr_val in enumerate(instance):
+                    if isinstance(attr_val, str):
+                        prob *= self.attribute_probs[attr_idx][cls].get(attr_val, 1 / len(self.attribute_probs[attr_idx][cls]))
+                    else:
+                        mean, std_dev = self.continuous_params[attr_idx][cls]
+                        prob *= self.calculate_prob_density(attr_val, mean, std_dev)
+                if prob > max_prob:
+                    max_prob = prob
+                    pred_class = cls
+            predictions.append(pred_class)
+        return predictions
+
+def main():
+    # Data Training
+    X_train = [
+        [25, 50000, 'HighSchool', 'Yes'],
+        [45, 100000, 'College', 'No'],
+        [35, 75000, 'HighSchool', 'Yes'],
+        [23, 30000, 'College', 'No'],
+        [50, 90000, 'HighSchool', 'No'],
+        [40, 110000, 'College', 'Yes']
+    ]
+
+    y_train = ['Buy', 'No', 'Buy', 'No', 'No', 'Buy']
+
+    # Inisialisasi dan Melatih Model
+    model = NaiveBayes()
+    model.fit(X_train, y_train)
+
+    # Meminta Input Pengguna dan Melakukan Prediksi
+    while True:
+        print("\nMasukkan atribut untuk melakukan prediksi atau ketik 'selesai' untuk keluar.")
+        user_input = input("Contoh input: 25 50000 HighSchool Yes\nInput: ").strip().split()
+        if user_input[0].lower() == 'selesai':
+            break
+        elif len(user_input) != 4:
+            print("Mohon masukkan empat atribut.")
+            continue
+        else:
+            try:
+                age = float(user_input[0])
+                income = float(user_input[1])
+                education = user_input[2].lower()  # Mengonversi ke huruf kecil
+                job = user_input[3].lower()  # Mengonversi ke huruf kecil
+                user_instance = [[age, income, education, job]]
+                predicted_instance = model.predict(user_instance)[0]
+                print(f"Prediksi: {predicted_instance}")
+            except ValueError:
+                print("Umur dan Pendapatan harus berupa angka.")
+                continue
+
+if __name__ == "__main__":
+    main()
